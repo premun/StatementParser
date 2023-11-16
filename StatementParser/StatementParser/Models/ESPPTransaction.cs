@@ -11,9 +11,9 @@ namespace StatementParser.Models
 		[Description("Market Price")]
 		public decimal MarketPrice { get; }
 
-		public decimal Amount { get; }
+        public override decimal Amount { get; }
 
-		public decimal Profit { get; }
+        public decimal Profit { get; }
 
 		[Description("Total Profit")]
 		public decimal TotalProfit { get; }

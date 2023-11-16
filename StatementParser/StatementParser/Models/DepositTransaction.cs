@@ -5,7 +5,7 @@ namespace StatementParser.Models
 {
 	public class DepositTransaction : Transaction
 	{
-		public decimal Amount { get; }
+		public override decimal Amount { get; }
 
 		public decimal Price { get; }
 

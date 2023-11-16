@@ -22,7 +22,7 @@ namespace StatementParser.Models
 		}
 
 		public int Leverage { get; }
-		public decimal Amount { get; }
+		public override decimal Amount { get; }
 
 		[Description("Purchase Price")]
 		public decimal PurchasePrice { get; }
