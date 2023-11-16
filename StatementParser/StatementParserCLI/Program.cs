@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Commander.NET;
 using Commander.NET.Exceptions;
+using ConsoleTables;
 using StatementParser;
 using StatementParser.Models;
 
@@ -67,9 +68,9 @@ public static class Program
 
         List<Transaction> transactions = tasks.SelectMany(t => t.Result).ToList();
 
-        decimal soldAt = 256.38M;
-        int left = 13;
-        decimal counter = 0;
+        decimal sellingPrice = 256.38M;
+        decimal currentPrice = 376M;
+        int left = 13; // How many stocks left after selling
 
         DateTime soldAtDate = new DateTime(2023, 3, 6);
         DateTime eligibleDate = new DateTime(2020, 3, 6);
@@ -79,6 +80,7 @@ public static class Program
             .Where(t => t.Date >= eligibleDate && t.Date < soldAtDate)
             .ToList();
 
+        decimal counter = 0;
         var leftoverTransactions = transactions
             .Where(t => t is DepositTransaction or ESPPTransaction)
             .Where(t => t.Date >= eligibleDate && t.Date < soldAtDate)
@@ -94,47 +96,65 @@ public static class Program
             .Except(leftoverTransactions)
             .ToList();
 
+        var table = new ConsoleTable("Date", "Amount", "Price", "Gain");
+
         decimal gain = taxableTransactions
-            .Select(t =>
+            .Sum(t =>
             {
                 (decimal amount, decimal price) = t switch
                 {
                     DepositTransaction d => (d.Amount, d.Price),
                     ESPPTransaction e => (e.Amount, e.MarketPrice),
-                    _ => throw new Exception("Unknown transaction type")
+                    _ => throw new ArgumentOutOfRangeException(nameof(t))
                 };
 
-                var gain = amount * (soldAt - price);
-                Console.WriteLine($"{t.Date} - {amount} - {price} - {gain}");
+                var gain = amount * (sellingPrice - price);
+                table.AddRow(t.Date, amount, price, gain);
                 return gain;
-            })
-            .Sum();
+            });
 
+        decimal loss = -gain;
+
+        Console.WriteLine($"Gain: {gain} USD");
+        Console.WriteLine($"Loss: {loss} USD");
+
+        table.Write(Format.Minimal);
+
+        // New stocks we can sell
         var newStocks = transactions
             .Where(t => t is DepositTransaction or ESPPTransaction)
             .Where(t => t.Date > soldAtDate)
+            .Concat(leftoverTransactions)
+            .OrderBy(t => t.Date)
             .ToList();
 
+        Console.WriteLine();
+        Console.WriteLine();
+        table = new ConsoleTable("New stocks", "Amount", "Date");
 
-        Console.WriteLine($"Gain: {gain} USD");
+        foreach (var newStock in newStocks)
+        {
+            table.AddRow(newStock.Name, newStock.Amount, newStock.Date);
+        }
 
-        //var printer = new Output();
-        //if (option.ShouldPrintAsJson)
-        //{
-        //	printer.PrintAsJson(transactions);
-        //}
-        //else if (option.ExcelSheetPath != null)
-        //{
-        //	printer.SaveAsExcelSheet(option.ExcelSheetPath, transactions);
-        //}
-        //else
-        //{
-        //	printer.PrintAsPlainText(transactions);
-        //}
-    }
+        table.Write(Format.Minimal);
 
-    private static async Task<IList<Transaction>> ParseFile(TransactionParser parser, string file)
-    {
-        return await parser.ParseAsync(file);
+        var newGain = 0M;
+        var stocksToSell = newStocks
+            .TakeWhile(t =>
+            {
+                newGain = t switch
+                {
+                    DepositTransaction d => d.Amount * (currentPrice - d.Price),
+                    ESPPTransaction e => e.Amount * (currentPrice - e.MarketPrice),
+                    _ => throw new ArgumentOutOfRangeException(nameof(t))
+                };
+
+                return newGain < loss;
+            })
+            .ToList();
+
+        Console.WriteLine($"Can sell: {stocksToSell.Sum(t => t.Amount)} stocks");
+        Console.WriteLine($"Sell gain: {newGain}");
     }
 }
